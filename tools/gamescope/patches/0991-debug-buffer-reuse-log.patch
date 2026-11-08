@@ -1,0 +1,89 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index a526eb5..f56f853 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -8375,6 +8375,75 @@ static bool commit_fence_ready_now( int nFd )
+ 	return poll( &pfd, 1, 0 ) == 1 && ( pfd.revents & POLLIN );
+ }
+ 
++// Diagnostic (GAMESCOPE_DEBUG_BUFFER_LOG=1): every 10 s, how clients reuse their buffers. A buffer
++// committed again while gamescope still holds a lock on it from an earlier commit or texture means
++// the client drew into it without being given it back (wl_buffer.release) - on a driver without
++// implicit sync that shows up as black or half-drawn frames.
++static void note_buffer_commit( struct wlr_buffer *pBuf, bool bStillQueued )
++{
++	static int s_nEnabled = -1;
++	if ( s_nEnabled < 0 )
++	{
++		const char *pchLog = getenv( "GAMESCOPE_DEBUG_BUFFER_LOG" );
++		s_nEnabled = pchLog && pchLog[0] == '1';
++		if ( s_nEnabled )
++			xwm_log.infof( "debug: buffer reuse log on (GAMESCOPE_DEBUG_BUFFER_LOG)" );
++	}
++	if ( !s_nEnabled || !pBuf )
++		return;
++
++	static uint64_t s_ulCommits = 0, s_ulQueued = 0, s_ulLastLog = 0;
++	static uint64_t s_ulLocks[5] = {};
++	static size_t s_zMaxLocks = 0;
++	static uint64_t s_ulMinReuseNs = UINT64_MAX;
++	static std::unordered_map<struct wlr_buffer *, uint64_t> s_LastCommit;
++
++	uint64_t now = get_time_in_nanos();
++	wlserver_lock();
++	size_t zLocks = pBuf->n_locks;
++	wlserver_unlock();
++
++	s_ulCommits++;
++	if ( bStillQueued )
++		s_ulQueued++;
++	s_ulLocks[ zLocks < 4 ? zLocks : 4 ]++;
++	if ( zLocks > s_zMaxLocks )
++		s_zMaxLocks = zLocks;
++
++	auto it = s_LastCommit.find( pBuf );
++	if ( it != s_LastCommit.end() && now - it->second < s_ulMinReuseNs )
++		s_ulMinReuseNs = now - it->second;
++	s_LastCommit[ pBuf ] = now;
++
++	if ( !s_ulLastLog )
++		s_ulLastLog = now;
++	if ( now - s_ulLastLog >= 10'000'000'000ul )
++	{
++		size_t zDistinct = 0;
++		for ( auto iter = s_LastCommit.begin(); iter != s_LastCommit.end(); )
++		{
++			if ( iter->second >= s_ulLastLog )
++			{
++				zDistinct++;
++				++iter;
++			}
++			else
++			{
++				iter = s_LastCommit.erase( iter );
++			}
++		}
++		xwm_log.infof( "buffers, last 10 s: %lu commits, %zu distinct buffers, %lu committed again while still queued, "
++			"locks at commit 0/1/2/3/4+: %lu/%lu/%lu/%lu/%lu (max %zu), shortest reuse %.1f ms",
++			s_ulCommits, zDistinct, s_ulQueued, s_ulLocks[0], s_ulLocks[1], s_ulLocks[2], s_ulLocks[3], s_ulLocks[4], s_zMaxLocks,
++			s_ulMinReuseNs == UINT64_MAX ? -1.0 : s_ulMinReuseNs / 1e6 );
++		s_ulCommits = s_ulQueued = 0;
++		for ( auto &ul : s_ulLocks ) ul = 0;
++		s_zMaxLocks = 0;
++		s_ulMinReuseNs = UINT64_MAX;
++		s_ulLastLog = now;
++	}
++}
++
+ static void note_commit_fence( bool bReadyAtImport )
+ {
+ 	static uint64_t s_ulReady = 0, s_ulWaited = 0, s_ulLastLog = 0;
+@@ -8453,6 +8522,8 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 			already_exists = true;
+ 	}
+ 
++	note_buffer_commit( buf, already_exists );
++
+ 	if ( already_exists && !reslistentry.feedback && reslistentry.presentation_feedbacks.empty() )
+ 	{
+ 		wlserver_lock();

@@ -213,3 +213,6 @@ The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it 
 - `0990-debug-commit-delay.patch` (diagnostic, fork only): `GAMESCOPE_DEBUG_COMMIT_DELAY_US=N` makes every
   commit wait N microseconds on a timerfd before gamescope uses it, to test whether black frames on KGSL
   come from frames used before the client GPU finished them. Off when unset.
+- `0991-debug-buffer-reuse-log.patch` (diagnostic, fork only): `GAMESCOPE_DEBUG_BUFFER_LOG=1` logs every 10 s how
+  clients reuse buffers: commits, distinct buffers, re-commits of a buffer still queued, and the wlr_buffer lock
+  count at commit (a buffer committed while gamescope still holds it was never released to the client).
