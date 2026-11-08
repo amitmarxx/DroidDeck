@@ -209,3 +209,7 @@ the connector's windows (`mangoapp_nudge_app_frame`). With `DROIDDECK_HUD_FRAMES
 sets `/run/droiddeck-hud/frames`), gamescope maps that file and writes the same commits of connector 0,
 whether or not a mangoapp runs, plus the focused pid, output size, refresh, Steam focus and engine name.
 The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it in `hudframes.c`.
+
+- `0990-debug-commit-delay.patch` (diagnostic, fork only): `GAMESCOPE_DEBUG_COMMIT_DELAY_US=N` makes every
+  commit wait N microseconds on a timerfd before gamescope uses it, to test whether black frames on KGSL
+  come from frames used before the client GPU finished them. Off when unset.
