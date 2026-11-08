@@ -216,3 +216,6 @@ The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it 
 - `0991-debug-buffer-reuse-log.patch` (diagnostic, fork only): `GAMESCOPE_DEBUG_BUFFER_LOG=1` logs every 10 s how
   clients reuse buffers: commits, distinct buffers, re-commits of a buffer still queued, and the wlr_buffer lock
   count at commit (a buffer committed while gamescope still holds it was never released to the client).
+- `0992-no-ubwc-switch.patch` (fork test): `GAMESCOPE_NO_UBWC=1` ignores the host compositor's QCOM_COMPRESSED
+  modifier, so gamescope's output buffers and the client buffers it allows stay uncompressed (black/tiled frames
+  on KGSL when UBWC buffers are shared between processes).

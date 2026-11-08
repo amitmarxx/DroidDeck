@@ -1,0 +1,25 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index 370661d..5ad2dca 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -2671,6 +2671,20 @@ namespace gamescope
+         xdg_log.infof( "Modifier: %s (0x%" PRIX32 ") %lx%s", drmGetFormatName( uFormat ), uFormat, ulModifier, pszExtraModifierName );
+ #endif
+ 
++        // GAMESCOPE_NO_UBWC=1: ignore the host's QCOM_COMPRESSED (UBWC) modifier, so gamescope's
++        // output buffers and the buffers it lets clients allocate (filtered against this list) stay
++        // uncompressed. UBWC buffers shared between processes on KGSL decode as black/tiled garbage.
++        static int s_nNoUbwc = -1;
++        if ( s_nNoUbwc < 0 )
++        {
++            const char *pchNoUbwc = getenv( "GAMESCOPE_NO_UBWC" );
++            s_nNoUbwc = pchNoUbwc && pchNoUbwc[0] == '1';
++            if ( s_nNoUbwc )
++                xdg_log.infof( "GAMESCOPE_NO_UBWC: ignoring the host's QCOM_COMPRESSED modifier" );
++        }
++        if ( s_nNoUbwc && ulModifier == 0x0500000000000001ull )
++            return;
++
+         if ( ulModifier != DRM_FORMAT_MOD_INVALID )
+             m_bCanUseModifiers = true;
+ 
